@@ -627,8 +627,9 @@ fn gen_request_fn(opcode: u16, request: &Message, wayrs_client_path: &Ident) -> 
                     new_object
                 },
             );
-            fn_args
-                .push(quote!(cb: impl FnMut(#wayrs_client_path::EventCtx<D, P>) + Send + 'static));
+            fn_args.push(
+                quote!(cb: impl FnMut(#wayrs_client_path::EventCtx<'_, D, P>) + Send + 'static),
+            );
             let cb = gen_pub_fn(
                 &doc,
                 &format!("{}_with_cb", request.name),
@@ -662,7 +663,7 @@ fn gen_request_fn(opcode: u16, request: &Message, wayrs_client_path: &Ident) -> 
                     new_object
                 },
             );
-            fn_args.push(quote!(cb: impl FnMut(#wayrs_client_path::EventCtx<D, #proxy_path>) + Send + 'static));
+            fn_args.push(quote!(cb: impl FnMut(#wayrs_client_path::EventCtx<'_, D, #proxy_path>) + Send + 'static));
             let cb = gen_pub_fn(
                 &doc,
                 &format!("{}_with_cb", request.name),
