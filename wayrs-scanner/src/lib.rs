@@ -22,15 +22,15 @@ struct MacroArgs {
 }
 
 impl MacroArgs {
-    fn parse(input: TokenStream) -> Option<Self> {
+    fn parse(input: TokenStream) -> Result<Self, &'static str> {
         let mut tokens = input.into_iter();
 
         let Some(proc_macro2::TokenTree::Ident(crate_root)) = tokens.next() else {
-            return None;
+            return Err("crate_root is not an identifier");
         };
 
         let Some(proc_macro2::TokenTree::Punct(_comma)) = tokens.next() else {
-            return None;
+            return Err("missing comma");
         };
 
         let path_lit = match tokens.next() {
@@ -39,34 +39,38 @@ impl MacroArgs {
             {
                 let mut group = group.stream().into_iter();
                 let Some(proc_macro2::TokenTree::Literal(path_lit)) = group.next() else {
-                    return None;
+                    return Err("group does not contain path_lit literal");
                 };
 
                 if group.next().is_some() {
-                    return None;
+                    return Err("group is too long");
                 }
 
                 path_lit
             }
             Some(proc_macro2::TokenTree::Literal(path_lit)) => path_lit,
-            _ => return None,
+            _ => return Err("path_lit is neither a literal nor a delimiterless group"),
         };
 
         if tokens.next().is_some() {
-            return None;
+            return Err("too many arguments");
         }
 
-        let path = mini_syn::parse_lit_str_cooked(&path_lit.to_string())?;
+        let path = mini_syn::parse_lit_str_cooked(&path_lit.to_string())
+            .ok_or("cannot parse path literal")?;
 
-        Some(Self { crate_root, path })
+        Ok(Self { crate_root, path })
     }
 }
 
 #[doc(hidden)]
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let Some(args) = MacroArgs::parse(input.into()) else {
-        return quote! { compile_error!("invalid macro arguments") }.into();
+    let args = match MacroArgs::parse(input.into()) {
+        Ok(args) => args,
+        Err(err) => {
+            return quote! { compile_error!("invalid scanner macro arguments: {}", #err) }.into()
+        }
     };
 
     let path = match std::env::var_os("CARGO_MANIFEST_DIR") {
